@@ -119,8 +119,8 @@ You can launch and access the app locally at: **[http://localhost:5175/](http://
 
 ## 🌟 Latest Upgrades Implemented (Checkpoint 7)
 
-### 1. 📥 Multilingual Social Media Link Downloader Tab
-- Added a completely new tab: **📥 Link Downloader** inside the main navigation sidebar.
+### 1. 📥 YouTube Audio & Video Downloader Tab
+- Added a completely new tab: **📥 YouTube Audio & Video Downloader** inside the main navigation sidebar.
 - Paste links from **YouTube, Instagram, TikTok, Twitter, Facebook, SoundCloud, etc.** to extract and download high-quality files client-side.
 - Options:
   * **Video (MP4)**: Toggle 1080p Full HD, 720p HD, or 480p SD resolutions.

@@ -507,7 +507,7 @@ function App() {
       case 'poetry': return 'Shayri/Poetry Studio';
       case 'video': return t.videoEditor;
       case 'reaction': return t.reactionStudio;
-      case 'downloader': return '📥 Link Downloader';
+      case 'downloader': return '📥 YouTube Audio & Video Downloader';
       case 'ai-lab': return 'AI Audio Lab';
       default: return 'AI Audio Lab';
     }

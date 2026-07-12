@@ -111,7 +111,7 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
         <Download size={24} style={{ color: 'var(--accent-primary)' }} />
         <div>
           <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }} className="gradient-text">
-            Social Media Link Downloader
+            YouTube Audio & Video Downloader
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: '2px 0 0 0' }}>
             Paste YouTube, Instagram, TikTok, Twitter, or SoundCloud links to download high-quality MP3/MP4 files.

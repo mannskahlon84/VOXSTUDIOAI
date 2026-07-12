@@ -14,7 +14,7 @@ const Sidebar = ({
     { id: 'poetry', label: 'Shayri/Poetry Studio', icon: BookOpen }, 
     { id: 'video', label: t.videoEditor, icon: Film },
     { id: 'reaction', label: t.reactionStudio, icon: Tv },
-    { id: 'downloader', label: '📥 Link Downloader', icon: Download }
+    { id: 'downloader', label: '📥 YouTube Audio & Video Downloader', icon: Download }
   ];
 
   return (
