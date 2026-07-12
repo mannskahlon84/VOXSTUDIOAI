@@ -51,19 +51,37 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
       setFetchingStatus(`Extracting via node ${i + 1}/${serversToTry.length}: ${serverUrl.replace('https://', '')}...`);
       
       try {
-        const response = await fetch(`${serverUrl}/api/json`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            url: targetUrl.trim(),
-            isAudioOnly: mediaFormat === 'audio',
-            audioFormat: mediaFormat === 'audio' ? aFormat : undefined,
-            vQuality: mediaFormat === 'video' ? vQuality : undefined
-          })
+        let response;
+        const requestBody = JSON.stringify({
+          url: targetUrl.trim(),
+          isAudioOnly: mediaFormat === 'audio',
+          audioFormat: mediaFormat === 'audio' ? aFormat : undefined,
+          vQuality: mediaFormat === 'video' ? vQuality : undefined
         });
+
+        try {
+          // Attempt direct fetch first
+          response = await fetch(`${serverUrl}/api/json`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: requestBody
+          });
+        } catch (directErr) {
+          console.warn(`Direct fetch failed for ${serverUrl}, trying via CORS proxy...`);
+          // Fallback to corsproxy.io
+          const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(serverUrl + '/api/json')}`;
+          response = await fetch(proxiedUrl, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: requestBody
+          });
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP Error ${response.status}`);
