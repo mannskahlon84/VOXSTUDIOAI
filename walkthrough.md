@@ -114,3 +114,27 @@ You can launch and access the app locally at: **[http://localhost:5175/](http://
 - Configured local directory as a Git repository tracking the large APK package using Git LFS (Git Large File Storage) to bypass GitHub's 100MB file size limit.
 - Pushed the source code to the GitHub repository: `https://github.com/mannskahlon84/VOXSTUDIOAI`.
 - Linked Netlify CI/CD pipeline to deploy automatically upon code updates.
+
+---
+
+## 🌟 Latest Upgrades Implemented (Checkpoint 7)
+
+### 1. 📥 Multilingual Social Media Link Downloader Tab
+- Added a completely new tab: **📥 Link Downloader** inside the main navigation sidebar.
+- Paste links from **YouTube, Instagram, TikTok, Twitter, Facebook, SoundCloud, etc.** to extract and download high-quality files client-side.
+- Options:
+  * **Video (MP4)**: Toggle 1080p Full HD, 720p HD, or 480p SD resolutions.
+  * **Audio (MP3)**: Convert target video directly to 320kbps MP3 audio streams.
+- **➕ Import to Project**: Allows users to download and immediately load the media file into their active project's backing tracks or video editor library with a single click.
+
+### 2. 🗣️ Punjabi & Gurmukhi High-Fidelity Cloud Voices
+- Injected fallback Google Translate TTS cloud voice synthesis directly into **AI Audio Lab**:
+  * Added **Google Punjabi Female (Cloud)** and **Google Gurmukhi Male (Cloud)** at the top of the AI Voice selector.
+  * Extracted vocal audio tracks are dynamically decoded into an `AudioBuffer` and mixed into final export tracks.
+
+### 3. 🎙️ Recorded Audio Audit & Deletion Controls
+- Live microphone recordings now display an interactive **audio preview player** to listen, test, and audit before exporting.
+- Includes a **🗑️ Delete** trash-bin action that clears memory cache so users can immediately re-record:
+  * Added under **AI Audio Lab -> Record Microphone**.
+  * Added under **AI Audio Lab -> Cover Maker -> Live Vocals**.
+  * Added under **Shayri/Poetry Studio -> Narration Rec**.
