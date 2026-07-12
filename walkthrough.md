@@ -81,3 +81,36 @@ You can launch and access the app locally at: **[http://localhost:5175/](http://
 2. **Capacitor Sync Success**: Web assets compiled and successfully synchronized into the native Android Capacitor folder.
 3. **Android Gradle Compile Success**: Native debug Android APK compiled successfully in `android/` using Java 21, copied to `public/voxstudio.apk`, and packaged into the final production bundle.
 4. **Dev Server Port**: Vite server successfully restarted on port `5175`.
+
+---
+
+## 🌟 Recent Enhancements Implemented
+
+### 1. Interactive Step-by-Step Guided Onboarding Tour
+- Added a premium, glassmorphic interactive tutorial overlay that walks new users through the core workspace operations:
+  * **Step 1**: Working with Projects & Drafts (Offline Database snapshots).
+  * **Step 2**: Creating Voice Clones & Songs (AI TTS + Voice effects).
+  * **Step 3**: Teleprompter & Video Backdrops (Poetry Studio).
+  * **Step 4**: Trimming & Splice Studio (Extracting silent videos & audio stems).
+  * **Step 5**: Timeline History Checkpoints (Reverting edits).
+- The tour launches automatically on first-time load and is manually triggerable anytime via the `💡 Help Guide & Tour` button at the bottom of the sidebar.
+
+### 2. 🎭 AI Face-Scan webcam avatar scanning & video template merging
+- Integrated live webcam scanning capability with a circular target frame and neon line sweeps simulating facial mesh nodes detection.
+- Generates a 90% accuracy mapped face snapshot which can be merged into 3 animated body templates:
+  * **Urban Street Walking (6s Loop)**: Walk in the rain in a neon city.
+  * **Rock Stage Singer (Spotlights)**: Singer under stage spotlights.
+  * **Fashion Shoot Model (Lens Flares)**: Elegant model side posing.
+- Dynamic canvas rendering engine maps the scanned face directly onto the avatar's body in real time during player playback and web exports.
+
+### 3. 💾 Unsaved Draft Auto-Save & Recovery Prompt (Poetry Studio)
+- Auto-saves user's progress locally if they are editing lyrics, backdrops, or soundscapes in the Shayri/Poetry Studio.
+- Displays a recovery confirmation prompt modal on load if an unsaved draft is detected, giving users option to restore work or start fresh.
+
+### 4. 📝 Prompt text input support in Image-to-Video
+- Added a prompt input field inside the Video Editor -> AI Video Studio -> Image-to-Video sub-tab so that users can describe the exact motion animations they want the AI to apply to their uploaded base image.
+
+### 5. 🚀 Continuous deployment configuration (GitHub + Git LFS)
+- Configured local directory as a Git repository tracking the large APK package using Git LFS (Git Large File Storage) to bypass GitHub's 100MB file size limit.
+- Pushed the source code to the GitHub repository: `https://github.com/mannskahlon84/VOXSTUDIOAI`.
+- Linked Netlify CI/CD pipeline to deploy automatically upon code updates.
