@@ -2,6 +2,19 @@ import React, { useState } from 'react';
 import { Download, Globe, Sparkles, AlertCircle, RefreshCw, FolderPlus } from 'lucide-react';
 import { translations } from '../assets/translations';
 
+const COBALT_INSTANCES = [
+  'https://api.cobalt.tools',
+  'https://cobalt.meowing.de',
+  'https://api.cobalt.meowing.de',
+  'https://cobalt.canine.tools',
+  'https://api.cobalt.canine.tools',
+  'https://cobalt.chubby.host',
+  'https://api.cobalt.chubby.host',
+  'https://cobalt.fox-host.ru',
+  'https://cobalt.audiostretch.io',
+  'https://cobalt.projecty.xyz'
+];
+
 const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onUpdateProjectState }) => {
   const t = translations[language] || translations.en;
 
@@ -9,6 +22,7 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
   const [mediaFormat, setMediaFormat] = useState('video'); // 'video', 'audio'
   const [vQuality, setVQuality] = useState('1080'); // '1080', '720', '480'
   const [aFormat, setAFormat] = useState('mp3'); // 'mp3', 'ogg'
+  const [customServerUrl, setCustomServerUrl] = useState('');
   
   const [isFetching, setIsFetching] = useState(false);
   const [fetchingStatus, setFetchingStatus] = useState('');
@@ -22,58 +36,77 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
     }
 
     setIsFetching(true);
-    setFetchingStatus("Connecting to Cobalt API nodes...");
     setDownloadResult(null);
     setErrorMsg('');
 
-    try {
-      // Step 1: Query public Cobalt API node
-      setFetchingStatus("Extracting video streams from social server...");
-      const response = await fetch('https://api.cobalt.tools/api/json', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          url: targetUrl.trim(),
-          isAudioOnly: mediaFormat === 'audio',
-          audioFormat: mediaFormat === 'audio' ? aFormat : undefined,
-          vQuality: mediaFormat === 'video' ? vQuality : undefined
-        })
-      });
+    const serversToTry = customServerUrl.trim()
+      ? [customServerUrl.trim().replace(/\/$/, '')]
+      : COBALT_INSTANCES;
 
-      const res = await response.json();
+    let success = false;
+    let lastError = '';
+
+    for (let i = 0; i < serversToTry.length; i++) {
+      const serverUrl = serversToTry[i];
+      setFetchingStatus(`Extracting via node ${i + 1}/${serversToTry.length}: ${serverUrl.replace('https://', '')}...`);
       
-      if (res.status === 'stream' || res.status === 'redirect') {
-        setDownloadResult({
-          url: res.url,
-          filename: res.filename || `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
-          title: res.filename ? res.filename.split('.').slice(0, -1).join('.') : 'Extracted Media Video'
+      try {
+        const response = await fetch(`${serverUrl}/api/json`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: targetUrl.trim(),
+            isAudioOnly: mediaFormat === 'audio',
+            audioFormat: mediaFormat === 'audio' ? aFormat : undefined,
+            vQuality: mediaFormat === 'video' ? vQuality : undefined
+          })
         });
-      } else if (res.status === 'picker') {
-        // Cobalt picker format (multiple stream options)
-        if (res.picker && res.picker.length > 0) {
-          setDownloadResult({
-            url: res.picker[0].url,
-            filename: `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
-            title: 'Extracted Multi-stream Media'
-          });
-        } else {
-          throw new Error("No download streams found in the picker list.");
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error ${response.status}`);
         }
-      } else if (res.status === 'error') {
-        throw new Error(res.error || "Cobalt API returned an extraction error.");
-      } else {
-        throw new Error("Unexpected extraction response status.");
+
+        const res = await response.json();
+        
+        if (res.status === 'stream' || res.status === 'redirect') {
+          setDownloadResult({
+            url: res.url,
+            filename: res.filename || `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
+            title: res.filename ? res.filename.split('.').slice(0, -1).join('.') : 'Extracted Media Video'
+          });
+          success = true;
+          break;
+        } else if (res.status === 'picker') {
+          if (res.picker && res.picker.length > 0) {
+            setDownloadResult({
+              url: res.picker[0].url,
+              filename: `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
+              title: 'Extracted Multi-stream Media'
+            });
+            success = true;
+            break;
+          } else {
+            throw new Error("No download streams found in the picker list.");
+          }
+        } else if (res.status === 'error') {
+          throw new Error(res.error || "Cobalt API returned an extraction error.");
+        } else {
+          throw new Error("Unexpected extraction response status.");
+        }
+      } catch (err) {
+        console.warn(`Extraction via ${serverUrl} failed:`, err.message);
+        lastError = err.message || "Unknown error";
       }
-    } catch (err) {
-      console.error(err);
-      setErrorMsg(err.message || "Failed to contact extraction servers. Please verify target link or try again later.");
-    } finally {
-      setIsFetching(false);
-      setFetchingStatus('');
     }
+
+    if (!success) {
+      setErrorMsg(`Failed to extract media: ${lastError}. All community downloader servers are currently rate-limited or down. Please try again or type a custom API server below.`);
+    }
+    setIsFetching(false);
+    setFetchingStatus('');
   };
 
   const handleImportToProject = async () => {
@@ -210,6 +243,20 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
               </select>
             </div>
           )}
+
+          <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '8px', marginTop: '4px' }}>
+            <label style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>
+              🔧 Custom API Server (Optional Fallback)
+            </label>
+            <input
+              type="text"
+              value={customServerUrl}
+              onChange={(e) => setCustomServerUrl(e.target.value)}
+              placeholder="e.g. https://api.cobalt.tools (leave empty for auto-balance)"
+              className="form-input"
+              style={{ fontSize: '0.75rem', padding: '0.35rem' }}
+            />
+          </div>
         </div>
 
         {/* Extraction trigger button */}
