@@ -185,16 +185,31 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       const loadVoices = () => {
         const list = window.speechSynthesis.getVoices();
-        setVoices(list);
-        if (list.length > 0) {
-          const defaults = list.find(v => v.lang.includes('hi') || v.lang.includes('en'));
-          setSelectedVoice(defaults ? defaults.name : list[0].name);
+        
+        // Define cloud fallback high-fidelity voices
+        const cloudVoices = [
+          { name: 'Google Punjabi Female (Cloud)', lang: 'pa-IN', isCloud: true, tl: 'pa' },
+          { name: 'Google Gurmukhi Male (Cloud)', lang: 'pa-IN', isCloud: true, tl: 'pa' },
+          { name: 'Google Hindi Female (Cloud)', lang: 'hi-IN', isCloud: true, tl: 'hi' },
+          { name: 'Google English Male (Cloud)', lang: 'en-US', isCloud: true, tl: 'en' }
+        ];
+
+        // Combine cloud voices at the top
+        const combined = [...cloudVoices, ...list];
+        setVoices(combined);
+        if (combined.length > 0) {
+          const defaults = combined.find(v => {
+            if (language === 'pa') return v.lang.includes('pa');
+            if (language === 'hi') return v.lang.includes('hi');
+            return v.lang.includes('en');
+          });
+          setSelectedVoice(defaults ? defaults.name : combined[0].name);
         }
       };
       loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
-  }, []);
+  }, [language]);
 
   // Upload handlers
   const handleUploadLyricsFile = (e) => {
@@ -539,13 +554,45 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
           vocalGain.connect(offlineCtx.destination);
           vocalSource.start(0);
         } else {
-          // TTS mode: speak in sync
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(lyricsText);
-          utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
-          utterance.rate = speechRate * 0.9;
-          utterance.pitch = speechPitch;
-          window.speechSynthesis.speak(utterance);
+          // TTS mode: speak in sync and mix into offlineCtx if cloud voice
+          const selectedVoiceObj = voices.find(v => v.name === selectedVoice);
+          if (selectedVoiceObj && selectedVoiceObj.isCloud) {
+            const tl = selectedVoiceObj.tl;
+            const encodedText = encodeURIComponent(lyricsText);
+            const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodedText}`;
+            try {
+              const response = await fetch(ttsUrl);
+              const blob = await response.blob();
+              const arrayBuffer = await blob.arrayBuffer();
+              const vocalAudioBuf = await tempCtx.decodeAudioData(arrayBuffer);
+
+              const vocalSource = offlineCtx.createBufferSource();
+              vocalSource.buffer = vocalAudioBuf;
+
+              const vocalGain = offlineCtx.createGain();
+              vocalGain.gain.value = 0.85;
+
+              const processedVocal = applyEffectsToSource(offlineCtx, vocalSource, selectedEffect);
+              processedVocal.connect(vocalGain);
+              vocalGain.connect(offlineCtx.destination);
+              vocalSource.start(0);
+            } catch (e) {
+              console.error("Cloud TTS offline render failed", e);
+            }
+          } else {
+            // Local fallback speak
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(lyricsText);
+            if (selectedVoiceObj) {
+              utterance.voice = selectedVoiceObj;
+              utterance.lang = selectedVoiceObj.lang;
+            } else {
+              utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
+            }
+            utterance.rate = speechRate * 0.9;
+            utterance.pitch = speechPitch;
+            window.speechSynthesis.speak(utterance);
+          }
         }
 
         const renderedBuffer = await offlineCtx.startRendering();
@@ -847,26 +894,45 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
     if (coverAudioRef.current) coverAudioRef.current.pause();
   };
 
-  const handleSynthesizeCoverTTS = () => {
-    if (!lyricsText.trim() || !window.speechSynthesis) return;
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(lyricsText);
-    utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
-    utterance.rate = 0.88;
-
-    utterance.onend = () => {
-      setCoverRecordedUrl('speechSynth');
-      alert("TTS Vocal synthesized and synced to cover tracks!");
-    };
-    
-    window.speechSynthesis.speak(utterance);
+  const handleSynthesizeCoverTTS = async () => {
+    if (!lyricsText.trim()) return;
 
     // Play backing instrumental in sync
     if (coverInstrumentalUrl && coverAudioRef.current) {
       coverAudioRef.current.volume = coverMixInstVolume;
       coverAudioRef.current.currentTime = 0;
       coverAudioRef.current.play().catch(() => {});
+    }
+
+    const selectedVoiceObj = voices.find(v => v.name === selectedVoice);
+    if (selectedVoiceObj && selectedVoiceObj.isCloud) {
+      const encodedText = encodeURIComponent(lyricsText);
+      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${selectedVoiceObj.tl}&client=tw-ob&q=${encodedText}`;
+      try {
+        const response = await fetch(ttsUrl);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setCoverRecordedUrl(url);
+        setCoverRecordedBlob(blob);
+        alert("Cloud TTS Vocal synthesized and synced to cover tracks!");
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(lyricsText);
+      if (selectedVoiceObj) {
+        utterance.voice = selectedVoiceObj;
+        utterance.lang = selectedVoiceObj.lang;
+      } else {
+        utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
+      }
+      utterance.rate = 0.88;
+      utterance.onend = () => {
+        setCoverRecordedUrl('speechSynth');
+        alert("TTS Vocal synthesized and synced to cover tracks!");
+      };
+      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -1149,18 +1215,48 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
                   <div style={{ display: 'flex', gap: '6px' }}>
                     {!isRecordingMic ? (
                       <button onClick={handleStartMicRecording} className="btn-primary" style={{ fontSize: '0.75rem', padding: '0.4rem', flex: 1 }}>
-                        Start Recording Vocal
+                        🎙️ Start Recording Vocal
                       </button>
                     ) : (
                       <button onClick={handleStopMicRecording} className="btn-primary" style={{ fontSize: '0.75rem', padding: '0.4rem', flex: 1, background: '#ef4444' }}>
-                        Stop Recording
+                        🛑 Stop Recording
                       </button>
                     )}
                   </div>
                   {recordedMicUrl && (
-                    <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 600 }}>
-                      ✓ Recorded vocal ready for master layering
-                    </span>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      padding: '0.6rem',
+                      marginTop: '0.2rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-primary)' }}>🎙️ Recorded Mic Track</span>
+                        <button
+                          onClick={() => {
+                            setRecordedMicUrl('');
+                            setRecordedMicBlob(null);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            fontSize: '0.68rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                      <audio src={recordedMicUrl} controls style={{ width: '100%', height: '32px', borderRadius: '4px' }} />
+                    </div>
                   )}
                 </div>
               )}
@@ -1446,15 +1542,52 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
               </div>
 
               {coverInputMode === 'record' ? (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {!isRecordingCover ? (
-                    <button onClick={handleStartCoverRecording} className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                      Start Recording Over Instrumental
-                    </button>
-                  ) : (
-                    <button onClick={handleStopCoverRecording} className="btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#ef4444' }}>
-                      Stop Recording & Save Cover Vocal
-                    </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {!isRecordingCover ? (
+                      <button onClick={handleStartCoverRecording} className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                        🎙️ Start Recording Over Instrumental
+                      </button>
+                    ) : (
+                      <button onClick={handleStopCoverRecording} className="btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#ef4444' }}>
+                        🛑 Stop Recording & Save Cover Vocal
+                      </button>
+                    )}
+                  </div>
+                  {coverRecordedUrl && coverRecordedUrl !== 'speechSynth' && (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      padding: '0.6rem',
+                      marginTop: '0.2rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-primary)' }}>🎙️ Recorded Cover Vocal</span>
+                        <button
+                          onClick={() => {
+                            setCoverRecordedUrl('');
+                            setCoverRecordedBlob(null);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            fontSize: '0.68rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                      <audio src={coverRecordedUrl} controls style={{ width: '100%', height: '32px', borderRadius: '4px' }} />
+                    </div>
                   )}
                 </div>
               ) : (

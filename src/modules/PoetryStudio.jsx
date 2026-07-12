@@ -1085,29 +1085,66 @@ const PoetryStudio = ({ language, theme, user, loadedProject, activeProject, onU
           </div>
 
           {/* Audio Dub / Mic Recorder */}
-          <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontSize: '0.95rem', margin: '0 0 2px 0' }}>Record Vocal Overlays</h3>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Read in sync with ambient backing tracks.</p>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {!isRecording ? (
-                <button onClick={handleStartAll} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>
-                  <Mic size={14} /> Record & Scroll
-                </button>
-              ) : (
-                <button onClick={handleStopAll} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem', background: '#ef4444' }}>
-                  <Square size={14} /> Stop
-                </button>
-              )}
+          <div className="glass-panel" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ fontSize: '0.95rem', margin: '0 0 2px 0' }}>Record Vocal Overlays</h3>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Read in sync with ambient backing tracks.</p>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {!isRecording ? (
+                  <button onClick={handleStartAll} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>
+                    <Mic size={14} /> Record & Scroll
+                  </button>
+                ) : (
+                  <button onClick={handleStopAll} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem', background: '#ef4444' }}>
+                    <Square size={14} /> Stop
+                  </button>
+                )}
 
-              {recordedUrl && (
-                <button onClick={handleDownloadMixed} className="btn-secondary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>
-                  <Download size={14} /> Download Mix
-                </button>
-              )}
+                {recordedUrl && (
+                  <button onClick={handleDownloadMixed} className="btn-secondary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>
+                    <Download size={14} /> Download Mix
+                  </button>
+                )}
+              </div>
             </div>
+
+            {recordedUrl && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '0.6rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-primary)' }}>🎙️ Recorded Poetry Vocal</span>
+                  <button
+                    onClick={() => {
+                      setRecordedUrl('');
+                      setRecordedBlob(null);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      fontSize: '0.68rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '2px'
+                    }}
+                  >
+                    🗑️ Delete / Re-record
+                  </button>
+                </div>
+                <audio src={recordedUrl} controls style={{ width: '100%', height: '32px', borderRadius: '4px' }} />
+              </div>
+            )}
           </div>
         </div>
 

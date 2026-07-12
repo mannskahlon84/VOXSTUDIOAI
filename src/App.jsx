@@ -4,6 +4,7 @@ import PoetryStudio from './modules/PoetryStudio';
 import VideoEditor from './modules/VideoEditor';
 import ReactionStudio from './modules/ReactionStudio';
 import AIAudioLab from './modules/AIAudioLab';
+import LinkDownloader from './modules/LinkDownloader';
 import AuthModal from './components/AuthModal';
 import ProjectManager from './components/ProjectManager';
 import ProjectTimelineDrawer from './components/ProjectTimelineDrawer';
@@ -492,6 +493,8 @@ function App() {
         return <VideoEditor {...commonProps} />;
       case 'reaction':
         return <ReactionStudio {...commonProps} />;
+      case 'downloader':
+        return <LinkDownloader {...commonProps} />;
       case 'ai-lab':
         return <AIAudioLab {...commonProps} />;
       default:
@@ -504,6 +507,7 @@ function App() {
       case 'poetry': return 'Shayri/Poetry Studio';
       case 'video': return t.videoEditor;
       case 'reaction': return t.reactionStudio;
+      case 'downloader': return '📥 Link Downloader';
       case 'ai-lab': return 'AI Audio Lab';
       default: return 'AI Audio Lab';
     }
