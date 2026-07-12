@@ -18,12 +18,16 @@ const COBALT_INSTANCES = [
 const INVIDIOUS_INSTANCES = [
   'https://invidious.projectsegfau.lt',
   'https://invidious.privacydev.net',
-  'https://invidious.nerdvpn.de',
   'https://invidious.lunar.icu',
   'https://invidious.io.lol',
   'https://iv.melmac.space',
   'https://invidious.flokinet.to',
-  'https://yewtu.be'
+  'https://yewtu.be',
+  'https://invidious.nerdvpn.de',
+  'https://invidious.namazso.eu',
+  'https://inv.tux.im',
+  'https://invidious.slipfox.xyz',
+  'https://invidious.nohost.me'
 ];
 
 const getYoutubeId = (url) => {
@@ -69,12 +73,30 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
         
         try {
           const targetApiUrl = `${instance}/api/v1/videos/${videoId}`;
-          // Use Allorigins GET proxy to ensure CORS bypass
-          const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApiUrl)}`;
-          
-          const response = await fetch(proxiedUrl);
-          if (!response.ok) {
-            throw new Error(`HTTP Error ${response.status}`);
+          let response;
+
+          try {
+            // Try direct fetch first (Invidious instances usually allow CORS natively)
+            response = await fetch(targetApiUrl);
+            if (!response.ok) {
+              throw new Error(`Invidious node returned non-OK status: ${response.status}`);
+            }
+          } catch (directErr) {
+            console.warn(`Direct Invidious fetch failed for ${instance}, trying via corsproxy.io...`);
+            try {
+              const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(targetApiUrl)}`;
+              response = await fetch(proxiedUrl);
+              if (!response.ok) {
+                throw new Error(`corsproxy.io returned status: ${response.status}`);
+              }
+            } catch (proxyErr) {
+              console.warn(`corsproxy.io failed, trying via allorigins...`);
+              const altProxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApiUrl)}`;
+              response = await fetch(altProxiedUrl);
+              if (!response.ok) {
+                throw new Error(`AllOrigins returned status: ${response.status}`);
+              }
+            }
           }
           
           const data = await response.json();
@@ -89,7 +111,7 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
               if (bestAudio && bestAudio.url) {
                 downloadUrl = bestAudio.url;
               } else {
-                downloadUrl = `${instance}/latest_version?id=${videoId}&itag=140&local=true`;
+                downloadUrl = `/latest_version?id=${videoId}&itag=140&local=true`;
               }
             } else {
               const videoStreams = data.formatStreams || [];
@@ -97,8 +119,13 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
               if (bestVideo && bestVideo.url) {
                 downloadUrl = bestVideo.url;
               } else {
-                downloadUrl = `${instance}/latest_version?id=${videoId}&itag=22&local=true`;
+                downloadUrl = `/latest_version?id=${videoId}&itag=22&local=true`;
               }
+            }
+
+            // Resolve relative paths if returned
+            if (downloadUrl.startsWith('/')) {
+              downloadUrl = `${instance}${downloadUrl}`;
             }
 
             // Route through Invidious local streaming proxy to prevent googlevideo CDN CORS locks
