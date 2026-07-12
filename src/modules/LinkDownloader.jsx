@@ -69,22 +69,45 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
             },
             body: requestBody
           });
+          if (!response.ok) {
+            throw new Error(`Direct response non-OK status: ${response.status}`);
+          }
         } catch (directErr) {
-          console.warn(`Direct fetch failed for ${serverUrl}, trying via CORS proxy...`);
-          // Fallback to corsproxy.io
-          const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(serverUrl + '/api/json')}`;
-          response = await fetch(proxiedUrl, {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json'
-            },
-            body: requestBody
-          });
-        }
-
-        if (!response.ok) {
-          throw new Error(`HTTP Error ${response.status}`);
+          console.warn(`Direct fetch failed or blocked for ${serverUrl}, trying via corsproxy.io...`);
+          try {
+            // Fallback to corsproxy.io
+            const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(serverUrl + '/api/json')}`;
+            response = await fetch(proxiedUrl, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              },
+              body: requestBody
+            });
+            if (!response.ok) {
+              throw new Error(`Proxy HTTP error ${response.status}`);
+            }
+          } catch (proxyErr) {
+            console.warn(`corsproxy.io failed, trying alternative proxy cors.lol...`);
+            // Secondary fallback to cors.lol
+            try {
+              const altProxiedUrl = `https://cors.lol/?${encodeURIComponent(serverUrl + '/api/json')}`;
+              response = await fetch(altProxiedUrl, {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: requestBody
+              });
+              if (!response.ok) {
+                throw new Error(`Secondary proxy HTTP error ${response.status}`);
+              }
+            } catch (altProxyErr) {
+              throw new Error("All public CORS proxies returned error results.");
+            }
+          }
         }
 
         const res = await response.json();
