@@ -15,6 +15,23 @@ const COBALT_INSTANCES = [
   'https://cobalt.projecty.xyz'
 ];
 
+const INVIDIOUS_INSTANCES = [
+  'https://invidious.projectsegfau.lt',
+  'https://invidious.privacydev.net',
+  'https://invidious.nerdvpn.de',
+  'https://invidious.lunar.icu',
+  'https://invidious.io.lol',
+  'https://iv.melmac.space',
+  'https://invidious.flokinet.to',
+  'https://yewtu.be'
+];
+
+const getYoutubeId = (url) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
+
 const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onUpdateProjectState }) => {
   const t = translations[language] || translations.en;
 
@@ -38,6 +55,80 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
     setIsFetching(true);
     setDownloadResult(null);
     setErrorMsg('');
+
+    // Primary YouTube Extraction Engine via Invidious instances
+    const videoId = getYoutubeId(targetUrl.trim());
+    if (videoId) {
+      setFetchingStatus("Extracting YouTube streams via Invidious nodes...");
+      let ytSuccess = false;
+      let ytLastError = '';
+
+      for (let i = 0; i < INVIDIOUS_INSTANCES.length; i++) {
+        const instance = INVIDIOUS_INSTANCES[i];
+        setFetchingStatus(`Trying YouTube node ${i + 1}/${INVIDIOUS_INSTANCES.length}: ${instance.replace('https://', '')}...`);
+        
+        try {
+          const targetApiUrl = `${instance}/api/v1/videos/${videoId}`;
+          // Use Allorigins GET proxy to ensure CORS bypass
+          const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApiUrl)}`;
+          
+          const response = await fetch(proxiedUrl);
+          if (!response.ok) {
+            throw new Error(`HTTP Error ${response.status}`);
+          }
+          
+          const data = await response.json();
+          if (data && data.title) {
+            let downloadUrl = '';
+            if (mediaFormat === 'audio') {
+              const audioStreams = data.adaptiveFormats || [];
+              const bestAudio = audioStreams
+                .filter(f => f.type && f.type.includes('audio'))
+                .sort((a, b) => parseInt(b.bitrate || 0) - parseInt(a.bitrate || 0))[0];
+              
+              if (bestAudio && bestAudio.url) {
+                downloadUrl = bestAudio.url;
+              } else {
+                downloadUrl = `${instance}/latest_version?id=${videoId}&itag=140&local=true`;
+              }
+            } else {
+              const videoStreams = data.formatStreams || [];
+              const bestVideo = videoStreams.find(f => f.qualityLabel === '720p') || videoStreams[0];
+              if (bestVideo && bestVideo.url) {
+                downloadUrl = bestVideo.url;
+              } else {
+                downloadUrl = `${instance}/latest_version?id=${videoId}&itag=22&local=true`;
+              }
+            }
+
+            // Route through Invidious local streaming proxy to prevent googlevideo CDN CORS locks
+            if (downloadUrl.includes('googlevideo.com')) {
+              const urlObj = new URL(downloadUrl);
+              const itag = urlObj.searchParams.get('itag') || (mediaFormat === 'audio' ? '140' : '22');
+              downloadUrl = `${instance}/latest_version?id=${videoId}&itag=${itag}&local=true`;
+            }
+
+            setDownloadResult({
+              url: downloadUrl,
+              filename: `${data.title.replace(/[^a-zA-Z0-9]/g, '_')}.${mediaFormat === 'audio' ? 'mp3' : 'mp4'}`,
+              title: data.title
+            });
+            ytSuccess = true;
+            break;
+          }
+        } catch (err) {
+          console.warn(`Invidious node ${instance} failed:`, err.message);
+          ytLastError = err.message || "Unknown error";
+        }
+      }
+
+      if (ytSuccess) {
+        setIsFetching(false);
+        setFetchingStatus('');
+        return;
+      }
+      console.warn("Invidious extraction failed. Falling back to Cobalt...");
+    }
 
     const serversToTry = customServerUrl.trim()
       ? [customServerUrl.trim().replace(/\/$/, '')]
