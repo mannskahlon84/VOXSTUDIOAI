@@ -67,7 +67,7 @@ const PoetryStudio = ({ language, theme, user, loadedProject, activeProject, onU
           if (draft.bgVolume !== undefined) setBgVolume(draft.bgVolume);
           if (draft.fontSize !== undefined) setFontSize(draft.fontSize);
           if (draft.selectedTextStyle !== undefined) setSelectedTextStyle(draft.selectedTextStyle);
-          if (draft.scrollerSpeed !== undefined) setScrollerSpeed(draft.scrollerSpeed);
+          if (draft.scrollSpeed !== undefined) setScrollSpeed(draft.scrollSpeed);
         } else {
           safeStorage.removeItem('vox_autosaved_poetry_draft');
         }
@@ -86,12 +86,12 @@ const PoetryStudio = ({ language, theme, user, loadedProject, activeProject, onU
         bgVolume,
         fontSize,
         selectedTextStyle,
-        scrollerSpeed,
+        scrollSpeed,
         timestamp: Date.now()
       };
       safeStorage.setItem('vox_autosaved_poetry_draft', JSON.stringify(draftObj));
     }
-  }, [poemText, photoUrl, backdropVideoUrl, soundscape, bgVolume, fontSize, selectedTextStyle, scrollerSpeed]);
+  }, [poemText, photoUrl, backdropVideoUrl, soundscape, bgVolume, fontSize, selectedTextStyle, scrollSpeed]);
 
   // Synchronize local states with activeProject snapshot parameters
   useEffect(() => {
