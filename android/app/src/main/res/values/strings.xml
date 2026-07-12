@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VoxStudio</string>
+    <string name="title_activity_main">VoxStudio</string>
+    <string name="package_name">com.voxstudio.app</string>
+    <string name="custom_url_scheme">com.voxstudio.app</string>
+</resources>
