@@ -502,13 +502,13 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
 
     const isOwnVoice = voiceSourceMode === 'clone' || voiceSourceMode === 'record';
     if (isOwnVoice) {
-      if (currentLimits.cloneCount >= 2) {
-        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 2 Own/Cloned Voice generations per day.\n\nUpgrade to VoxStudio Premium for unlimited high-fidelity clone exports!");
+      if (currentLimits.cloneCount >= 50) {
+        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 50 Cloned Voice generations per day.");
         return;
       }
     } else {
-      if (currentLimits.ttsCount >= 10) {
-        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 10 Random/Default Voice generations per day.\n\nUpgrade to VoxStudio Premium for unlimited generation!");
+      if (currentLimits.ttsCount >= 100) {
+        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 100 TTS generations per day.");
         return;
       }
     }
@@ -1465,14 +1465,22 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
               )}
 
               <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
-                  <span>Daily Credits (Random Voice):</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{10 - songLimits.ttsCount} / 10 left</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
-                  <span>Daily Credits (Own/Cloned Voice):</span>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{2 - songLimits.cloneCount} / 2 left</span>
-                </div>
+                {usePremiumSuno ? (
+                  <div style={{ fontSize: '0.73rem', color: 'var(--accent-primary)', fontWeight: 700, textAlign: 'center', background: 'var(--accent-glow)', padding: '0.3rem', borderRadius: '4px' }}>
+                    ⚡ Suno Premium: Unlimited Generations
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
+                      <span>Daily Credits (Random Voice):</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{100 - songLimits.ttsCount} / 100 left</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
+                      <span>Daily Credits (Own/Cloned Voice):</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{50 - songLimits.cloneCount} / 50 left</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {generatedSongUrl && (
