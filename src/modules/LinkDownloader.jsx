@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Download, Globe, Sparkles, AlertCircle, RefreshCw, FolderPlus } from 'lucide-react';
 import { translations } from '../assets/translations';
 
@@ -56,6 +56,36 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
   const [fetchingStatus, setFetchingStatus] = useState('');
   const [downloadResult, setDownloadResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const detectedPlatform = useMemo(() => {
+    if (!targetUrl) return null;
+    const cleanUrl = targetUrl.toLowerCase().trim();
+    if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
+      if (cleanUrl.includes('/shorts/')) {
+        return { label: 'YouTube Short', type: 'youtube_short', icon: '⚡' };
+      }
+      return { label: 'YouTube Video', type: 'youtube_video', icon: '🎥' };
+    }
+    if (cleanUrl.includes('instagram.com')) {
+      if (cleanUrl.includes('/reel/')) {
+        return { label: 'Instagram Reel', type: 'instagram_reel', icon: '📸' };
+      }
+      return { label: 'Instagram Post/Story', type: 'instagram_post', icon: '📸' };
+    }
+    if (cleanUrl.includes('tiktok.com')) {
+      return { label: 'TikTok Video', type: 'tiktok_video', icon: '🎵' };
+    }
+    if (cleanUrl.includes('facebook.com') || cleanUrl.includes('fb.watch')) {
+      return { label: 'Facebook Video', type: 'facebook_video', icon: '👥' };
+    }
+    if (cleanUrl.includes('twitter.com') || cleanUrl.includes('x.com')) {
+      return { label: 'Twitter/X Video', type: 'twitter_video', icon: '🐦' };
+    }
+    if (cleanUrl.includes('soundcloud.com')) {
+      return { label: 'SoundCloud Audio', type: 'soundcloud_audio', icon: '☁️' };
+    }
+    return { label: 'Web Link', type: 'generic', icon: '🔗' };
+  }, [targetUrl]);
 
   const handleFetchMedia = async () => {
     if (!targetUrl.trim()) {
@@ -372,6 +402,38 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
     }
   };
 
+  const handleDownloadFile = async (e) => {
+    e.preventDefault();
+    if (!downloadResult || !downloadResult.url) return;
+
+    const originalHTML = e.currentTarget.innerHTML;
+    e.currentTarget.innerHTML = "<span>⏳ Processing...</span>";
+    e.currentTarget.style.pointerEvents = "none";
+    e.currentTarget.style.opacity = "0.7";
+
+    try {
+      const response = await fetch(downloadResult.url);
+      if (!response.ok) throw new Error("CORS or network error fetching file stream");
+      const blob = await response.blob();
+      const localUrl = URL.createObjectURL(blob);
+      
+      const tempLink = document.createElement('a');
+      tempLink.href = localUrl;
+      tempLink.download = downloadResult.filename || 'downloaded_media';
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      URL.revokeObjectURL(localUrl);
+    } catch (err) {
+      console.warn("Direct blob download failed, opening in new tab fallback:", err);
+      window.open(downloadResult.url, '_blank');
+    } finally {
+      e.currentTarget.innerHTML = originalHTML;
+      e.currentTarget.style.pointerEvents = "auto";
+      e.currentTarget.style.opacity = "1";
+    }
+  };
+
   return (
     <div style={{ maxWidth: '680px', margin: '0 auto' }} className="glass-panel">
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem' }}>
@@ -412,6 +474,24 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
               </button>
             )}
           </div>
+          {detectedPlatform && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '6px',
+              padding: '2px 8px',
+              borderRadius: '20px',
+              background: 'var(--accent-glow)',
+              border: '1px solid var(--accent-primary)',
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              color: 'var(--accent-primary)',
+              animation: 'fadeIn 0.2s ease-out'
+            }}>
+              <span>{detectedPlatform.icon} Detected: {detectedPlatform.label}</span>
+            </div>
+          )}
         </div>
 
         {/* Format Selectors Toggle */}
@@ -506,7 +586,7 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
               {fetchingStatus || 'Extracting streams...'}
             </span>
           ) : (
-            '⚡ Fetch & Extract Media Link'
+            `⚡ Extract ${detectedPlatform ? detectedPlatform.label : 'Media Link'}`
           )}
         </button>
 
@@ -596,6 +676,7 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
                 {/* Download Button */}
                 <a
                   href={downloadResult.url}
+                  onClick={handleDownloadFile}
                   target="_blank"
                   rel="noreferrer"
                   className="btn-primary"

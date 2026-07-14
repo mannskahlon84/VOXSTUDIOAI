@@ -107,7 +107,74 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Try Invidious first if it is a YouTube link to maximize stability
+    // Cobalt Instances Pool
+    const COBALT_INSTANCES = [
+      'https://api.cobalt.tools',
+      'https://cobalt.meowing.de',
+      'https://api.cobalt.meowing.de',
+      'https://cobalt.canine.tools',
+      'https://api.cobalt.canine.tools',
+      'https://cobalt.chubby.host',
+      'https://api.cobalt.chubby.host',
+      'https://cobalt.fox-host.ru',
+      'https://cobalt.audiostretch.io',
+      'https://cobalt.projecty.xyz'
+    ];
+
+    const fetchFromCobalt = async (serverUrl) => {
+      const response = await fetchWithTimeout(`${serverUrl}/api/json`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url,
+          isAudioOnly: !!isAudioOnly,
+          audioFormat: isAudioOnly ? (audioFormat || 'mp3') : undefined,
+          vQuality: !isAudioOnly ? (vQuality || '1080') : undefined
+        })
+      }, 5000); // 5 seconds timeout
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error ${response.status} from ${serverUrl}`);
+      }
+
+      const resData = await response.json();
+      if (!resData || resData.status === 'error') {
+        throw new Error(resData.error || "Cobalt node error status");
+      }
+      return resData;
+    };
+
+    // Step 1: Query Cobalt first on the backend (gives high-quality direct links and native mp3 conversion)
+    let cobaltResult = null;
+    const cobaltBatch1 = COBALT_INSTANCES.slice(0, 4);
+    try {
+      cobaltResult = await promiseAny(cobaltBatch1.map(fetchFromCobalt));
+    } catch (err1) {
+      const cobaltBatch2 = COBALT_INSTANCES.slice(4, 8);
+      try {
+        cobaltResult = await promiseAny(cobaltBatch2.map(fetchFromCobalt));
+      } catch (err2) {
+        const cobaltBatch3 = COBALT_INSTANCES.slice(8);
+        try {
+          cobaltResult = await promiseAny(cobaltBatch3.map(fetchFromCobalt));
+        } catch (err3) {
+          console.warn("All Cobalt instances returned errors. Falling back to Invidious...");
+        }
+      }
+    }
+
+    if (cobaltResult) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(cobaltResult)
+      };
+    }
+
+    // Step 2: Fallback to Invidious instances ONLY if it is a YouTube link and Cobalt failed
     const isYoutube = /youtube\.com|youtu\.be/.test(url);
     if (isYoutube) {
       const getYoutubeId = (u) => {
@@ -143,7 +210,6 @@ exports.handler = async function(event, context) {
           return { instance, data };
         };
 
-        // Concurrent Race Batching: query 4 nodes in parallel for near-instant responses
         let successResult = null;
         const batch1 = INVIDIOUS_INSTANCES.slice(0, 4);
         try {
@@ -153,7 +219,6 @@ exports.handler = async function(event, context) {
           try {
             successResult = await promiseAny(batch2.map(fetchFromInvidious));
           } catch (err2) {
-            // Last fallback individual check
             try {
               successResult = await fetchFromInvidious(INVIDIOUS_INSTANCES[8]);
             } catch (err3) {
@@ -209,70 +274,6 @@ exports.handler = async function(event, context) {
           };
         }
       }
-    }
-
-    // Fallback to Cobalt instances
-    const COBALT_INSTANCES = [
-      'https://api.cobalt.tools',
-      'https://cobalt.meowing.de',
-      'https://api.cobalt.meowing.de',
-      'https://cobalt.canine.tools',
-      'https://api.cobalt.canine.tools',
-      'https://cobalt.chubby.host',
-      'https://api.cobalt.chubby.host',
-      'https://cobalt.fox-host.ru',
-      'https://cobalt.audiostretch.io',
-      'https://cobalt.projecty.xyz'
-    ];
-
-    const fetchFromCobalt = async (serverUrl) => {
-      const response = await fetchWithTimeout(`${serverUrl}/api/json`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          url,
-          isAudioOnly: !!isAudioOnly,
-          audioFormat: isAudioOnly ? (audioFormat || 'mp3') : undefined,
-          vQuality: !isAudioOnly ? (vQuality || '1080') : undefined
-        })
-      }, 4000); // 4 seconds timeout
-
-      if (!response.ok) {
-        throw new Error(`HTTP Error ${response.status} from ${serverUrl}`);
-      }
-
-      const resData = await response.json();
-      return resData;
-    };
-
-    // Race Cobalt instances in batches of 4 for maximum speed and availability
-    let cobaltResult = null;
-    const cobaltBatch1 = COBALT_INSTANCES.slice(0, 4);
-    try {
-      cobaltResult = await promiseAny(cobaltBatch1.map(fetchFromCobalt));
-    } catch (err1) {
-      const cobaltBatch2 = COBALT_INSTANCES.slice(4, 8);
-      try {
-        cobaltResult = await promiseAny(cobaltBatch2.map(fetchFromCobalt));
-      } catch (err2) {
-        const cobaltBatch3 = COBALT_INSTANCES.slice(8);
-        try {
-          cobaltResult = await promiseAny(cobaltBatch3.map(fetchFromCobalt));
-        } catch (err3) {
-          throw new Error("All Cobalt instances returned errors.");
-        }
-      }
-    }
-
-    if (cobaltResult) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify(cobaltResult)
-      };
     }
 
     return {
