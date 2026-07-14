@@ -36,6 +36,13 @@ const getYoutubeId = (url) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+const formatDuration = (sec) => {
+  if (!sec) return '';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
 const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onUpdateProjectState }) => {
   const t = translations[language] || translations.en;
 
@@ -85,11 +92,14 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
 
       if (response.ok) {
         const res = await response.json();
+        const ytId = getYoutubeId(targetUrl.trim());
         if (res.status === 'stream' || res.status === 'redirect') {
           setDownloadResult({
             url: res.url,
             filename: res.filename || `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
-            title: res.title || 'Extracted Media'
+            title: res.title || 'Extracted Media',
+            thumbnail: ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : (res.thumbnail || null),
+            duration: res.duration ? formatDuration(res.duration) : null
           });
           serverlessSuccess = true;
         } else if (res.status === 'picker') {
@@ -97,7 +107,9 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
             setDownloadResult({
               url: res.picker[0].url,
               filename: `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
-              title: 'Extracted Multi-stream Media'
+              title: 'Extracted Multi-stream Media',
+              thumbnail: ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null,
+              duration: null
             });
             serverlessSuccess = true;
           }
@@ -193,7 +205,9 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
             setDownloadResult({
               url: downloadUrl,
               filename: `${data.title.replace(/[^a-zA-Z0-9]/g, '_')}.${mediaFormat === 'audio' ? 'mp3' : 'mp4'}`,
-              title: data.title
+              title: data.title,
+              thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+              duration: formatDuration(data.lengthSeconds)
             });
             ytSuccess = true;
             break;
@@ -286,19 +300,25 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
         const res = await response.json();
         
         if (res.status === 'stream' || res.status === 'redirect') {
+          const ytId = getYoutubeId(targetUrl.trim());
           setDownloadResult({
             url: res.url,
             filename: res.filename || `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
-            title: res.filename ? res.filename.split('.').slice(0, -1).join('.') : 'Extracted Media Video'
+            title: res.filename ? res.filename.split('.').slice(0, -1).join('.') : 'Extracted Media Video',
+            thumbnail: ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null,
+            duration: null
           });
           success = true;
           break;
         } else if (res.status === 'picker') {
           if (res.picker && res.picker.length > 0) {
+            const ytId = getYoutubeId(targetUrl.trim());
             setDownloadResult({
               url: res.picker[0].url,
               filename: `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
-              title: 'Extracted Multi-stream Media'
+              title: 'Extracted Multi-stream Media',
+              thumbnail: ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null,
+              duration: null
             });
             success = true;
             break;
@@ -511,60 +531,110 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
         {/* Extraction Result Showcase Card */}
         {downloadResult && (
           <div className="glass-panel" style={{
-            padding: '1rem',
+            padding: '1.25rem',
             border: '1px solid var(--accent-primary)',
             background: 'var(--accent-glow)',
+            borderRadius: '12px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-            marginTop: '0.5rem'
+            gap: '1.25rem',
+            alignItems: 'center',
+            marginTop: '0.8rem',
+            flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600 }}>✓ EXTRACTION SUCCESSFUL</span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                {downloadResult.title}
-              </span>
-            </div>
+            {/* Thumbnail */}
+            {downloadResult.thumbnail ? (
+              <div style={{ position: 'relative', width: '140px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', aspectRatio: '16/9' }}>
+                <img 
+                  src={downloadResult.thumbnail} 
+                  alt="Video Thumbnail" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
+                {downloadResult.duration && (
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '4px',
+                    right: '4px',
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    color: '#fff',
+                    padding: '2px 4px',
+                    borderRadius: '4px',
+                    fontSize: '0.65rem',
+                    fontWeight: 700
+                  }}>
+                    {downloadResult.duration}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                width: '140px',
+                aspectRatio: '16/9',
+                borderRadius: '8px',
+                background: 'var(--bg-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-secondary)'
+              }}>
+                <Globe size={32} />
+              </div>
+            )}
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {/* Direct Download Link Button */}
-              <a
-                href={downloadResult.url}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-primary"
-                style={{
-                  flex: 1,
-                  textDecoration: 'none',
-                  justifyContent: 'center',
-                  fontSize: '0.8rem',
-                  padding: '0.55rem',
-                  color: '#fff'
-                }}
-              >
-                <Download size={14} /> Download File
-              </a>
+            {/* Details & Action Panel */}
+            <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.68rem', color: 'var(--accent-primary)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                  ✓ READY TO DOWNLOAD
+                </span>
+                <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3, wordBreak: 'break-word' }}>
+                  {downloadResult.title}
+                </span>
+              </div>
 
-              {/* Import to active project option */}
-              {activeProject && (
-                <button
-                  onClick={handleImportToProject}
-                  className="btn-secondary"
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {/* Download Button */}
+                <a
+                  href={downloadResult.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-primary"
                   style={{
                     flex: 1,
+                    textDecoration: 'none',
+                    justifyContent: 'center',
                     fontSize: '0.8rem',
-                    padding: '0.55rem',
-                    borderColor: 'var(--accent-primary)',
-                    color: 'var(--text-primary)'
+                    padding: '0.6rem 1rem',
+                    color: '#fff',
+                    gap: '6px'
                   }}
                 >
-                  <FolderPlus size={14} /> Import to Project
-                </button>
-              )}
+                  <Download size={15} /> 
+                  Download {mediaFormat === 'audio' ? `MP3 (${aFormat.toUpperCase()})` : `MP4 (${vQuality}p)`}
+                </a>
+
+                {/* Import to Project Button */}
+                {activeProject && (
+                  <button
+                    onClick={handleImportToProject}
+                    className="btn-secondary"
+                    style={{
+                      fontSize: '0.8rem',
+                      padding: '0.6rem 1rem',
+                      borderColor: 'var(--accent-primary)',
+                      color: 'var(--text-primary)',
+                      gap: '6px'
+                    }}
+                  >
+                    <FolderPlus size={15} /> Import
+                  </button>
+                )}
+              </div>
+
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                If download opens in a new tab instead of saving, right-click the button and select <strong>"Save Link As"</strong>.
+              </span>
             </div>
-            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-              If downloading fails, right-click "Download File" and select "Save Link As".
-            </span>
           </div>
         )}
       </div>

@@ -105,7 +105,8 @@ exports.handler = async function(event, context) {
                   status: 'stream',
                   url: downloadUrl,
                   filename: `${data.title.replace(/[^a-zA-Z0-9]/g, '_')}.${isAudioOnly ? 'mp3' : 'mp4'}`,
-                  title: data.title
+                  title: data.title,
+                  duration: data.lengthSeconds
                 })
               };
             }
