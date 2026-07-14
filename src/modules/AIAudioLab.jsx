@@ -401,24 +401,25 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
       setIsGeneratingSong(true);
       setFetchingStatus("Connecting to Suno Premium AI...");
 
-      const apiKey = "afk_998ddc348f9956a7a3da4e2393876bcbea703898";
-      const generateUrl = "https://api.apiframe.ai/v2/music/generate";
+      const sunoProxyUrl = "/.netlify/functions/suno";
 
-      fetch(generateUrl, {
+      fetch(sunoProxyUrl, {
         method: "POST",
         headers: {
-          "X-API-Key": apiKey,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "suno",
-          prompt: lyricsText,
-          sunoParams: {
-            custom_mode: true,
-            title: musicPrompt ? musicPrompt.substring(0, 40) : "Shayari Song",
-            style: musicPrompt || "sad lofi piano",
-            instrumental: false,
-            model_version: "V4"
+          action: "generate",
+          payload: {
+            model: "suno",
+            prompt: lyricsText,
+            sunoParams: {
+              custom_mode: true,
+              title: musicPrompt ? musicPrompt.substring(0, 40) : "Shayari Song",
+              style: musicPrompt || "sad lofi piano",
+              instrumental: false,
+              model_version: "V4"
+            }
           }
         })
       })
@@ -431,10 +432,16 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
           setFetchingStatus("Suno generation in queue...");
 
           // Poll job status
-          const pollUrl = `https://api.apiframe.ai/v2/jobs/${jobId}`;
           const pollInterval = setInterval(() => {
-            fetch(pollUrl, {
-              headers: { "X-API-Key": apiKey }
+            fetch(sunoProxyUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                action: "poll",
+                jobId: jobId
+              })
             })
               .then(res => res.json())
               .then(jobData => {
