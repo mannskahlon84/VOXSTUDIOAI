@@ -1,17 +1,50 @@
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 3000) => {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
-  } catch (err) {
-    clearTimeout(id);
-    throw err;
-  }
+const https = require('https');
+
+const fetchWithTimeout = (url, options = {}, timeoutMs = 3500) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const urlObj = new URL(url);
+      const reqOptions = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname + urlObj.search,
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        timeout: timeoutMs
+      };
+
+      const req = https.request(reqOptions, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            json: async () => JSON.parse(data),
+            text: async () => data
+          });
+        });
+      });
+
+      req.on('error', (err) => {
+        reject(err);
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request Timeout'));
+      });
+
+      if (options.body) {
+        req.write(options.body);
+      }
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 };
 
 exports.handler = async function(event, context) {
