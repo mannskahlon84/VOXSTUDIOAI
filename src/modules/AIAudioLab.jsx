@@ -13,6 +13,10 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
   // --- 1. AI SONG & VOICE STUDIO STATE (SUNO STYLE) ---
   const [lyricsText, setLyricsText] = useState('');
   const [musicPrompt, setMusicPrompt] = useState('sad melancholic piano for a shayari');
+  const [fetchingStatus, setFetchingStatus] = useState('');
+  const [usePremiumSuno, setUsePremiumSuno] = useState(true);
+  const [apiframeTracks, setApiframeTracks] = useState([]);
+  const [activeApiframeTrack, setActiveApiframeTrack] = useState(null);
   
   // Voice Synthesis / cloning
   const [voiceSourceMode, setVoiceSourceMode] = useState('tts'); // 'tts', 'clone', 'record'
@@ -393,6 +397,93 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
       return;
     }
 
+    if (usePremiumSuno) {
+      setIsGeneratingSong(true);
+      setFetchingStatus("Connecting to Suno Premium AI...");
+
+      const apiKey = "afk_998ddc348f9956a7a3da4e2393876bcbea703898";
+      const generateUrl = "https://api.apiframe.ai/v2/music/generate";
+
+      fetch(generateUrl, {
+        method: "POST",
+        headers: {
+          "X-API-Key": apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "suno",
+          prompt: lyricsText,
+          sunoParams: {
+            custom_mode: true,
+            title: musicPrompt ? musicPrompt.substring(0, 40) : "Shayari Song",
+            style: musicPrompt || "sad lofi piano",
+            instrumental: false,
+            model_version: "V4"
+          }
+        })
+      })
+        .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
+        .then(({ ok, status, data }) => {
+          if (!ok) {
+            throw new Error(data.error || `Request failed with status ${status}`);
+          }
+          const jobId = data.jobId;
+          setFetchingStatus("Suno generation in queue...");
+
+          // Poll job status
+          const pollUrl = `https://api.apiframe.ai/v2/jobs/${jobId}`;
+          const pollInterval = setInterval(() => {
+            fetch(pollUrl, {
+              headers: { "X-API-Key": apiKey }
+            })
+              .then(res => res.json())
+              .then(jobData => {
+                if (jobData.status === "COMPLETED") {
+                  clearInterval(pollInterval);
+                  const tracks = jobData.result.tracks;
+                  setApiframeTracks(tracks);
+                  setIsGeneratingSong(false);
+                  setFetchingStatus("");
+                  if (tracks && tracks.length > 0) {
+                    setActiveApiframeTrack(tracks[0]);
+                    setGeneratedSongUrl(tracks[0].audioUrl);
+                    if (masterAudioRef.current) {
+                      masterAudioRef.current.src = tracks[0].audioUrl;
+                    }
+                    updateProjectDiff({
+                      generatedSongUrl: tracks[0].audioUrl
+                    }, `Generated Premium Suno Track: ${tracks[0].title}`);
+                    alert("Premium Suno Song generated successfully! Variations available below.");
+                  }
+                } else if (jobData.status === "FAILED") {
+                  clearInterval(pollInterval);
+                  setIsGeneratingSong(false);
+                  setFetchingStatus("");
+                  alert(`Suno generation failed: ${jobData.error || "Unknown error"}. Falling back to standard local synthesis.`);
+                  runLocalAudioSynthesis();
+                } else if (jobData.status === "PROCESSING") {
+                  setFetchingStatus("Suno AI generating tracks (this takes ~30-60s)...");
+                } else {
+                  setFetchingStatus(`Suno generation: ${jobData.status}...`);
+                }
+              })
+              .catch(err => {
+                console.error("Polling error:", err);
+              });
+          }, 3000);
+        })
+        .catch(err => {
+          console.error("APIFrame start error:", err);
+          alert(`Failed to start premium Suno generation: ${err.message}. Falling back to local offline synthesis.`);
+          runLocalAudioSynthesis();
+        });
+      return;
+    }
+
+    runLocalAudioSynthesis();
+  };
+
+  const runLocalAudioSynthesis = () => {
     // Daily Credit limits check
     const todayStr = new Date().toDateString();
     const limits = safeJsonParse(safeStorage.getItem('vox_song_limits'), { date: "", ttsCount: 0, cloneCount: 0 });
@@ -1292,6 +1383,24 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
                 style={{ resize: 'none', fontSize: '0.85rem' }}
               />
 
+              {/* Premium toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--accent-glow)', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid var(--accent-primary)', marginTop: '0.4rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    ⚡ Suno AI Premium (High Fidelity)
+                  </span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                    Generate full backing music + singing vocals
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={usePremiumSuno}
+                  onChange={(e) => setUsePremiumSuno(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
+                />
+              </div>
+
               {/* Toggle style copying from reference vocal track */}
               {clonedVoiceUrl && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.1rem' }}>
@@ -1330,6 +1439,24 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
                 {isGeneratingSong ? 'Rendering Master Composition...' : '⚡ Generate AI Song (Suno Style)'}
               </button>
 
+              {fetchingStatus && (
+                <div style={{
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '0.5rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary)',
+                  textAlign: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}>
+                  <RefreshCw size={12} className="spin" /> {fetchingStatus}
+                </div>
+              )}
+
               <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
                   <span>Daily Credits (Random Voice):</span>
@@ -1361,9 +1488,53 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
                     <button onClick={handlePlayGeneratedSong} className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem' }}>
                       {isPlayingGeneratedSong ? 'Pause' : 'Play Song'}
                     </button>
-                    <a href={generatedSongUrl} download="ai_master_song.wav" className="btn-secondary" style={{ flex: 1, textDecoration: 'none', justifyContent: 'center', fontSize: '0.8rem' }}>
+                    <a href={generatedSongUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ flex: 1, textDecoration: 'none', justifyContent: 'center', fontSize: '0.8rem' }}>
                       <Download size={12} /> Download Master
                     </a>
+                  </div>
+                </div>
+              )}
+
+              {apiframeTracks && apiframeTracks.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.8rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.8rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Layers size={13} /> Select Suno Variation:
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {apiframeTracks.map((track, idx) => (
+                      <div
+                        key={track.id}
+                        onClick={() => {
+                          setActiveApiframeTrack(track);
+                          setGeneratedSongUrl(track.audioUrl);
+                          if (masterAudioRef.current) {
+                            masterAudioRef.current.src = track.audioUrl;
+                          }
+                          updateProjectDiff({ generatedSongUrl: track.audioUrl });
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          background: activeApiframeTrack?.id === track.id ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+                          border: `1px solid ${activeApiframeTrack?.id === track.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                          borderRadius: '6px',
+                          padding: '0.4rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <img src={track.imageUrl} alt="cover" style={{ width: '38px', height: '38px', borderRadius: '4px', objectFit: 'cover' }} />
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Variation #{idx + 1}: {track.title}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                            ⏱️ {Math.round(track.duration)}s | {track.tags || 'AI Master'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
