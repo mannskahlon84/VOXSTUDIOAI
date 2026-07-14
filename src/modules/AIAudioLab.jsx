@@ -443,10 +443,70 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
           }
         }
 
-        const duration = 18.0; 
+        // 1. Prepare/fetch vocal clips first to determine dynamic song length
+        const vocalBuffers = [];
+        let totalVocalDuration = 0;
+
+        if (voiceSourceMode === 'clone' && clonedVoiceUrl) {
+          const response = await fetch(clonedVoiceUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          const vocalBuf = await tempCtx.decodeAudioData(arrayBuffer);
+          vocalBuffers.push(vocalBuf);
+          totalVocalDuration = vocalBuf.duration;
+        } else if (voiceSourceMode === 'record' && recordedMicUrl) {
+          const response = await fetch(recordedMicUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          const vocalBuf = await tempCtx.decodeAudioData(arrayBuffer);
+          vocalBuffers.push(vocalBuf);
+          totalVocalDuration = vocalBuf.duration;
+        } else {
+          // TTS Mode: automatic text chunking to support long texts and mix vocals into offlineCtx
+          const selectedVoiceObj = voices.find(v => v.name === selectedVoice);
+          let tl = 'en';
+          if (selectedVoiceObj) {
+            if (selectedVoiceObj.lang.startsWith('hi')) tl = 'hi';
+            else if (selectedVoiceObj.lang.startsWith('pa')) tl = 'pa';
+            else if (selectedVoiceObj.lang.startsWith('es')) tl = 'es';
+            else if (selectedVoiceObj.lang.startsWith('fr')) tl = 'fr';
+          }
+
+          // Chunk lyrics text (max 150 chars per request)
+          const words = lyricsText.split(/\s+/);
+          const chunks = [];
+          let currentChunk = '';
+          for (const word of words) {
+            if ((currentChunk + ' ' + word).trim().length <= 150) {
+              currentChunk = (currentChunk + ' ' + word).trim();
+            } else {
+              if (currentChunk) chunks.push(currentChunk);
+              currentChunk = word;
+            }
+          }
+          if (currentChunk) chunks.push(currentChunk);
+
+          setFetchingStatus("Synthesizing AI lyrics vocals...");
+          for (const chunk of chunks) {
+            try {
+              const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+              const response = await fetch(ttsUrl);
+              if (response.ok) {
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                const vocalBuf = await tempCtx.decodeAudioData(arrayBuffer);
+                vocalBuffers.push(vocalBuf);
+                totalVocalDuration += vocalBuf.duration + 0.8; // add buffer time for natural gaps
+              }
+            } catch (err) {
+              console.warn("TTS fetch chunk failed:", chunk, err);
+            }
+          }
+        }
+
+        // Set song duration dynamically: min 15s, max 120s
+        const songDuration = Math.min(Math.max(totalVocalDuration + 3.0, 15.0), 120.0);
         const sampleRate = tempCtx.sampleRate;
         const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        const offlineCtx = new OfflineCtx(2, sampleRate * duration, sampleRate);
+        const offlineCtx = new OfflineCtx(2, sampleRate * songDuration, sampleRate);
 
         const chords = {
           minor: [
@@ -471,9 +531,10 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
 
         const activeChords = chords[scale] || chords.minor;
         const secondsPerBeat = 60 / tempo;
-        const steps = duration / secondsPerBeat;
+        const steps = songDuration / secondsPerBeat;
 
-        // 1. Synthesize background instrumental
+        // 2. Synthesize background instrumental
+        setFetchingStatus("Synthesizing backing composition...");
         for (let beat = 0; beat < steps; beat++) {
           const chordIdx = Math.floor(beat / 2) % activeChords.length;
           const chordNotes = activeChords[chordIdx];
@@ -519,79 +580,30 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
           });
         }
 
-        // 2. Synthesize/clone vocals
-        if (voiceSourceMode === 'clone' && clonedVoiceUrl) {
-          // Voice cloning mock: Layer voice reference waveform matching the lyrics rhythm
-          const response = await fetch(clonedVoiceUrl);
-          const arrayBuffer = await response.arrayBuffer();
-          const vocalAudioBuf = await tempCtx.decodeAudioData(arrayBuffer);
+        // 3. Layer the vocal buffers into the offline context
+        setFetchingStatus("Mixing tracks and compiling master...");
+        let currentVocalTime = 1.0; // start after 1 measure introduction
+        const measureDuration = 4 * secondsPerBeat;
 
-          const vocalSource = offlineCtx.createBufferSource();
-          vocalSource.buffer = vocalAudioBuf;
-          vocalSource.loop = true;
-
+        for (const buf of vocalBuffers) {
+          const source = offlineCtx.createBufferSource();
+          source.buffer = buf;
+          
           const vocalGain = offlineCtx.createGain();
-          vocalGain.gain.value = 0.85;
-
-          const processedVocal = applyEffectsToSource(offlineCtx, vocalSource, selectedEffect);
+          vocalGain.gain.setValueAtTime(0.85, currentVocalTime);
+          
+          const processedVocal = applyEffectsToSource(offlineCtx, source, selectedEffect);
           processedVocal.connect(vocalGain);
           vocalGain.connect(offlineCtx.destination);
-          vocalSource.start(0);
-        } else if (voiceSourceMode === 'record' && recordedMicUrl) {
-          // Layer live recorded vocal track
-          const response = await fetch(recordedMicUrl);
-          const arrayBuffer = await response.arrayBuffer();
-          const vocalAudioBuf = await tempCtx.decodeAudioData(arrayBuffer);
-
-          const vocalSource = offlineCtx.createBufferSource();
-          vocalSource.buffer = vocalAudioBuf;
-
-          const vocalGain = offlineCtx.createGain();
-          vocalGain.gain.value = 0.85;
-
-          const processedVocal = applyEffectsToSource(offlineCtx, vocalSource, selectedEffect);
-          processedVocal.connect(vocalGain);
-          vocalGain.connect(offlineCtx.destination);
-          vocalSource.start(0);
-        } else {
-          // TTS mode: speak in sync and mix into offlineCtx if cloud voice
-          const selectedVoiceObj = voices.find(v => v.name === selectedVoice);
-          if (selectedVoiceObj && selectedVoiceObj.isCloud) {
-            const tl = selectedVoiceObj.tl;
-            const encodedText = encodeURIComponent(lyricsText);
-            const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodedText}`;
-            try {
-              const response = await fetch(ttsUrl);
-              const blob = await response.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              const vocalAudioBuf = await tempCtx.decodeAudioData(arrayBuffer);
-
-              const vocalSource = offlineCtx.createBufferSource();
-              vocalSource.buffer = vocalAudioBuf;
-
-              const vocalGain = offlineCtx.createGain();
-              vocalGain.gain.value = 0.85;
-
-              const processedVocal = applyEffectsToSource(offlineCtx, vocalSource, selectedEffect);
-              processedVocal.connect(vocalGain);
-              vocalGain.connect(offlineCtx.destination);
-              vocalSource.start(0);
-            } catch (e) {
-              console.error("Cloud TTS offline render failed", e);
-            }
+          
+          source.start(currentVocalTime);
+          if (voiceSourceMode === 'clone' || voiceSourceMode === 'record') {
+            // Single vocal buffer
+            source.stop(currentVocalTime + buf.duration);
           } else {
-            // Local fallback speak
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(lyricsText);
-            if (selectedVoiceObj) {
-              utterance.voice = selectedVoiceObj;
-              utterance.lang = selectedVoiceObj.lang;
-            } else {
-              utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
-            }
-            utterance.rate = speechRate * 0.9;
-            utterance.pitch = speechPitch;
-            window.speechSynthesis.speak(utterance);
+            // Snap the next chunk's start time to the next musical measure boundary (4 beats)
+            const nextTime = currentVocalTime + buf.duration + 0.5; // duration plus short pause
+            currentVocalTime = Math.ceil(nextTime / measureDuration) * measureDuration;
           }
         }
 
@@ -630,10 +642,12 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
         tempCtx.close();
       } catch (e) {
         console.error(e);
+        alert("Audio rendering failed. Please try again.");
       } finally {
         setIsGeneratingSong(false);
+        setFetchingStatus('');
       }
-    }, 2000);
+    }, 100);
   };
 
   const handlePlayGeneratedSong = () => {
