@@ -402,36 +402,10 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
     }
   };
 
-  const handleDownloadFile = async (e) => {
-    e.preventDefault();
-    if (!downloadResult || !downloadResult.url) return;
-
-    const originalHTML = e.currentTarget.innerHTML;
-    e.currentTarget.innerHTML = "<span>⏳ Processing...</span>";
-    e.currentTarget.style.pointerEvents = "none";
-    e.currentTarget.style.opacity = "0.7";
-
-    try {
-      const response = await fetch(downloadResult.url);
-      if (!response.ok) throw new Error("CORS or network error fetching file stream");
-      const blob = await response.blob();
-      const localUrl = URL.createObjectURL(blob);
-      
-      const tempLink = document.createElement('a');
-      tempLink.href = localUrl;
-      tempLink.download = downloadResult.filename || 'downloaded_media';
-      document.body.appendChild(tempLink);
-      tempLink.click();
-      document.body.removeChild(tempLink);
-      URL.revokeObjectURL(localUrl);
-    } catch (err) {
-      console.warn("Direct blob download failed, opening in new tab fallback:", err);
-      window.open(downloadResult.url, '_blank');
-    } finally {
-      e.currentTarget.innerHTML = originalHTML;
-      e.currentTarget.style.pointerEvents = "auto";
-      e.currentTarget.style.opacity = "1";
-    }
+  const handleDownloadFile = (e) => {
+    // Open the stream directly. It will either download immediately (if Cobalt) or play in a new tab (if Invidious).
+    // Show a helpful tip to ensure they know how to save the file.
+    alert("Opening direct media stream link.\n\nTo save on your device:\n• Mobile: Tap the three dots (⋮) on the player and select 'Download'\n• Desktop: Right-click the player and select 'Save Video As...'");
   };
 
   return (
