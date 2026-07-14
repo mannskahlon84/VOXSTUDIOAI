@@ -60,6 +60,61 @@ const LinkDownloader = ({ language, theme, activeProject, onAddProjectAsset, onU
     setDownloadResult(null);
     setErrorMsg('');
 
+    // Step 1: Attempt extraction via Netlify serverless backend proxy (zero CORS restrictions)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const serverlessUrl = isLocal
+      ? 'https://voxstudioai.netlify.app/.netlify/functions/download'
+      : '/.netlify/functions/download';
+
+    let serverlessSuccess = false;
+
+    try {
+      setFetchingStatus("Extracting via backend serverless proxy...");
+      const response = await fetch(serverlessUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url: targetUrl.trim(),
+          isAudioOnly: mediaFormat === 'audio',
+          audioFormat: mediaFormat === 'audio' ? aFormat : undefined,
+          vQuality: mediaFormat === 'video' ? vQuality : undefined
+        })
+      });
+
+      if (response.ok) {
+        const res = await response.json();
+        if (res.status === 'stream' || res.status === 'redirect') {
+          setDownloadResult({
+            url: res.url,
+            filename: res.filename || `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
+            title: res.title || 'Extracted Media'
+          });
+          serverlessSuccess = true;
+        } else if (res.status === 'picker') {
+          if (res.picker && res.picker.length > 0) {
+            setDownloadResult({
+              url: res.picker[0].url,
+              filename: `extracted_media_${Date.now()}.${mediaFormat === 'audio' ? aFormat : 'mp4'}`,
+              title: 'Extracted Multi-stream Media'
+            });
+            serverlessSuccess = true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Backend proxy failed, falling back to client-side extraction...", err.message);
+    }
+
+    if (serverlessSuccess) {
+      setIsFetching(false);
+      setFetchingStatus('');
+      return;
+    }
+
+    // Step 2: Client-side extraction fallback (for native Capacitor app / offline)
+
     // Primary YouTube Extraction Engine via Invidious instances
     const videoId = getYoutubeId(targetUrl.trim());
     if (videoId) {
