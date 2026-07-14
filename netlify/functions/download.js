@@ -255,9 +255,9 @@ exports.handler = async function(event, context) {
             downloadUrl = `${instance}${downloadUrl}`;
           }
 
+          // Force standard itag values (140 for m4a audio, 22/18 for mp4 video) to prevent 404 on Invidious nodes
           if (downloadUrl.includes('googlevideo.com')) {
-            const urlObj = new URL(downloadUrl);
-            const itag = urlObj.searchParams.get('itag') || (isAudioOnly ? '140' : '22');
+            const itag = isAudioOnly ? '140' : '22';
             downloadUrl = `${instance}/latest_version?id=${videoId}&itag=${itag}&local=true`;
           }
 
