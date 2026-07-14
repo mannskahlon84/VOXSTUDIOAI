@@ -47,6 +47,29 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = 3500) => {
   });
 };
 
+// Node-compatible Promise.any Polyfill
+const promiseAny = (promises) => {
+  return new Promise((resolve, reject) => {
+    let rejectedCount = 0;
+    const errors = [];
+    if (promises.length === 0) {
+      reject(new Error("Empty promise array"));
+      return;
+    }
+    promises.forEach((p, index) => {
+      Promise.resolve(p)
+        .then(resolve)
+        .catch((err) => {
+          rejectedCount++;
+          errors[index] = err;
+          if (rejectedCount === promises.length) {
+            reject(new Error("All promises rejected: " + errors.map(e => e.message).join(', ')));
+          }
+        });
+    });
+  });
+};
+
 exports.handler = async function(event, context) {
   // CORS Headers
   const headers = {
@@ -124,11 +147,11 @@ exports.handler = async function(event, context) {
         let successResult = null;
         const batch1 = INVIDIOUS_INSTANCES.slice(0, 4);
         try {
-          successResult = await Promise.any(batch1.map(fetchFromInvidious));
+          successResult = await promiseAny(batch1.map(fetchFromInvidious));
         } catch (err1) {
           const batch2 = INVIDIOUS_INSTANCES.slice(4, 8);
           try {
-            successResult = await Promise.any(batch2.map(fetchFromInvidious));
+            successResult = await promiseAny(batch2.map(fetchFromInvidious));
           } catch (err2) {
             // Last fallback individual check
             try {
@@ -229,15 +252,15 @@ exports.handler = async function(event, context) {
     let cobaltResult = null;
     const cobaltBatch1 = COBALT_INSTANCES.slice(0, 4);
     try {
-      cobaltResult = await Promise.any(cobaltBatch1.map(fetchFromCobalt));
+      cobaltResult = await promiseAny(cobaltBatch1.map(fetchFromCobalt));
     } catch (err1) {
       const cobaltBatch2 = COBALT_INSTANCES.slice(4, 8);
       try {
-        cobaltResult = await Promise.any(cobaltBatch2.map(fetchFromCobalt));
+        cobaltResult = await promiseAny(cobaltBatch2.map(fetchFromCobalt));
       } catch (err2) {
         const cobaltBatch3 = COBALT_INSTANCES.slice(8);
         try {
-          cobaltResult = await Promise.any(cobaltBatch3.map(fetchFromCobalt));
+          cobaltResult = await promiseAny(cobaltBatch3.map(fetchFromCobalt));
         } catch (err3) {
           throw new Error("All Cobalt instances returned errors.");
         }
