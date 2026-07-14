@@ -116,12 +116,10 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
   // Load Daily Generation Credits limits
   useEffect(() => {
     const todayStr = new Date().toDateString();
-    const limits = safeJsonParse(safeStorage.getItem('vox_song_limits'), { date: "", ttsCount: 0, cloneCount: 0 });
-    if (limits.date === todayStr) {
-      setSongLimits(limits);
-    } else {
-      setSongLimits({ date: todayStr, ttsCount: 0, cloneCount: 0 });
-    }
+    // Refill testing credits instantly on loading this update
+    const fresh = { date: todayStr, ttsCount: 0, cloneCount: 0 };
+    safeStorage.setItem('vox_song_limits', JSON.stringify(fresh));
+    setSongLimits(fresh);
   }, []);
 
   // Synchronize local states with activeProject snapshot parameters
@@ -502,13 +500,13 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
 
     const isOwnVoice = voiceSourceMode === 'clone' || voiceSourceMode === 'record';
     if (isOwnVoice) {
-      if (currentLimits.cloneCount >= 50) {
-        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 50 Cloned Voice generations per day.");
+      if (currentLimits.cloneCount >= 2) {
+        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 2 Own/Cloned Voice generations per day.\n\nUpgrade to VoxStudio Premium for unlimited high-fidelity clone exports!");
         return;
       }
     } else {
-      if (currentLimits.ttsCount >= 100) {
-        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 100 TTS generations per day.");
+      if (currentLimits.ttsCount >= 10) {
+        alert("Daily Limit Reached!\n\nFree tier accounts are limited to 10 Random/Default Voice generations per day.\n\nUpgrade to VoxStudio Premium for unlimited generation!");
         return;
       }
     }
@@ -1473,12 +1471,34 @@ const AIAudioLab = ({ language, theme, user, activeProject, onUpdateProjectState
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
                       <span>Daily Credits (Random Voice):</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{100 - songLimits.ttsCount} / 100 left</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{10 - songLimits.ttsCount} / 10 left</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
                       <span>Daily Credits (Own/Cloned Voice):</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{50 - songLimits.cloneCount} / 50 left</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{2 - songLimits.cloneCount} / 2 left</span>
                     </div>
+                    <button
+                      onClick={() => {
+                        const todayStr = new Date().toDateString();
+                        const fresh = { date: todayStr, ttsCount: 0, cloneCount: 0 };
+                        safeStorage.setItem('vox_song_limits', JSON.stringify(fresh));
+                        setSongLimits(fresh);
+                        alert("Daily testing credits successfully refilled!");
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'right',
+                        marginTop: '2px',
+                        padding: 0
+                      }}
+                    >
+                      🔄 Reset / Refill testing credits
+                    </button>
                   </>
                 )}
               </div>
